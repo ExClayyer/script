@@ -1,162 +1,135 @@
--- ULTIMATE COMBAT ASSISTANT v4.0 (PERFORMANCE EDITION)
+--[[
+  Ultimate Combat Assistant v3.2 (Text Input Edition)
+  Features:
+  - Text input fields instead of sliders
+  - RightShift menu
+  - ESP system
+  - Aim Assist
+--]]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting")
 
--- ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗ 
--- ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗
--- ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██║  ██║
--- ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██║  ██║
--- ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██████╔╝
--- ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═════╝ 
-
+-- ================ DEFAULT SETTINGS ================
 local SETTINGS = {
-    -- AIM SYSTEM
+    -- Aim Assist
     AimEnabled = true,
     AimKey = Enum.KeyCode.LeftShift,
-    FOV = 90,                  -- Увеличенный угол захвата
-    AimDelay = 0.05,           -- Уменьшенная задержка
-    Smoothness = 0.15,         -- Более плавное движение
+    FOV = 70,
+    AimDelay = 0.1,
+    Smoothness = 0.25,
     TeamCheck = true,
-    VisibilityCheck = true,
-    AutoFire = false,          -- Новый функционал
     
-    -- ESP SYSTEM
+    -- ESP
     ESPEnabled = true,
-    BoxESP = true,
-    NameESP = true,
-    HealthBar = true,
-    DistanceESP = true,
     VisibleColor = Color3.fromRGB(255, 50, 50),
     HiddenColor = Color3.fromRGB(50, 50, 255),
-    ESPTransparency = 0.4,     -- Лучшая видимость
+    ESPTransparency = 0.6,
     
     -- UI
-    MenuKey = Enum.KeyCode.RightShift,
-    UIScale = 1               -- Масштабирование интерфейса
+    MenuKey = Enum.KeyCode.RightShift
 }
 
--- ███╗   ███╗███████╗███╗   ██╗██╗   ██╗
--- ████╗ ████║██╔════╝████╗  ██║██║   ██║
--- ██╔████╔██║█████╗  ██╔██╗ ██║██║   ██║
--- ██║╚██╔╝██║██╔══╝  ██║╚██╗██║██║   ██║
--- ██║ ╚═╝ ██║███████╗██║ ╚████║╚██████╔╝
--- ╚═╝     ╚═╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ 
-
+-- ================ CORE VARIABLES ================
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local AimActive = false
-local CurrentTarget = nil
-local ESPCache = {}
+local TargetFound = false
+local AimStartTime = 0
 local MenuVisible = false
 
--- ==================== УЛУЧШЕННОЕ МЕНЮ ====================
+-- ================ UI CREATION ================
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CombatAssistantUI_Premium"
+ScreenGui.Name = "CombatAssistantUI_TextInput"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
 
+-- Main menu frame
 local MenuFrame = Instance.new("Frame")
 MenuFrame.Name = "SettingsMenu"
-MenuFrame.Size = UDim2.new(0, 400 * SETTINGS.UIScale, 0, 600 * SETTINGS.UIScale)
-MenuFrame.Position = UDim2.new(0.5, -200 * SETTINGS.UIScale, 0.5, -300 * SETTINGS.UIScale)
-MenuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MenuFrame.Size = UDim2.new(0, 350, 0, 500)
+MenuFrame.Position = UDim2.new(0.5, -175, 0.5, -250)
+MenuFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 MenuFrame.BorderSizePixel = 0
 MenuFrame.Visible = false
 MenuFrame.Parent = ScreenGui
 
 local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.CornerRadius = UDim.new(0, 8)
 UICorner.Parent = MenuFrame
 
--- Анимированный заголовок
 local title = Instance.new("TextLabel")
-title.Text = "ULTIMATE ASSISTANT v4.0"
-title.Size = UDim2.new(1, 0, 0, 50 * SETTINGS.UIScale)
+title.Text = "COMBAT ASSISTANT v3.2"
+title.Size = UDim2.new(1, 0, 0, 40)
 title.TextColor3 = Color3.new(1, 1, 1)
-title.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
-title.Font = Enum.Font.GothamBlack
-title.TextSize = 20 * SETTINGS.UIScale
+title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
 title.Parent = MenuFrame
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.CornerRadius = UDim.new(0, 8)
 TitleCorner.Parent = title
 
--- Функция создания улучшенных контролов
-local yOffset = 60 * SETTINGS.UIScale
-local function CreateEnhancedInputField(name, setting, min, max, isInt)
+-- Settings controls
+local yOffset = 50
+
+local function CreateInputField(name, setting, min, max)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -40 * SETTINGS.UIScale, 0, 70 * SETTINGS.UIScale)
-    frame.Position = UDim2.new(0, 20 * SETTINGS.UIScale, 0, yOffset)
+    frame.Size = UDim2.new(1, -40, 0, 60)
+    frame.Position = UDim2.new(0, 20, 0, yOffset)
     frame.BackgroundTransparency = 1
     frame.Parent = MenuFrame
     
     local label = Instance.new("TextLabel")
     label.Text = name
-    label.Size = UDim2.new(0.6, 0, 0, 30 * SETTINGS.UIScale)
+    label.Size = UDim2.new(0.6, 0, 0, 25)
     label.TextColor3 = Color3.fromRGB(220, 220, 220)
     label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamSemibold
+    label.Font = Enum.Font.Gotham
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextSize = 16 * SETTINGS.UIScale
+    label.TextSize = 16
     label.Parent = frame
     
     local textBox = Instance.new("TextBox")
     textBox.Text = tostring(SETTINGS[setting])
-    textBox.Size = UDim2.new(0.35, 0, 0, 35 * SETTINGS.UIScale)
-    textBox.Position = UDim2.new(0.65, 0, 0, 0)
-    textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    textBox.Size = UDim2.new(0.4, 0, 0, 30)
+    textBox.Position = UDim2.new(0.6, 0, 0, 0)
+    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
     textBox.TextColor3 = Color3.new(1, 1, 1)
-    textBox.Font = Enum.Font.GothamMedium
-    textBox.TextSize = 14 * SETTINGS.UIScale
+    textBox.Font = Enum.Font.Gotham
+    textBox.TextSize = 14
     textBox.ClearTextOnFocus = false
+    textBox.PlaceholderText = tostring(SETTINGS[setting])
     textBox.Parent = frame
     
     local textBoxCorner = Instance.new("UICorner")
-    textBoxCorner.CornerRadius = UDim.new(0, 8)
+    textBoxCorner.CornerRadius = UDim.new(0, 6)
     textBoxCorner.Parent = textBox
     
-    textBox.Focused:Connect(function()
-        textBox.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
-    end)
-    
     textBox.FocusLost:Connect(function(enterPressed)
-        textBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
         if enterPressed then
             local num = tonumber(textBox.Text)
             if num then
                 num = math.clamp(num, min, max)
-                if isInt then num = math.floor(num) end
                 SETTINGS[setting] = num
                 textBox.Text = tostring(num)
-                
-                -- Анимация подтверждения
-                local tween = TweenService:Create(textBox, TweenInfo.new(0.15), {
-                    BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-                })
-                tween:Play()
-                tween.Completed:Wait()
-                tween = TweenService:Create(textBox, TweenInfo.new(0.3), {
-                    BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-                })
-                tween:Play()
             else
                 textBox.Text = tostring(SETTINGS[setting])
             end
         end
     end)
     
-    yOffset = yOffset + 80 * SETTINGS.UIScale
+    yOffset = yOffset + 70
 end
 
-local function CreatePremiumToggle(name, setting)
+local function CreateToggle(name, setting)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -40 * SETTINGS.UIScale, 0, 45 * SETTINGS.UIScale)
-    frame.Position = UDim2.new(0, 20 * SETTINGS.UIScale, 0, yOffset)
+    frame.Size = UDim2.new(1, -40, 0, 40)
+    frame.Position = UDim2.new(0, 20, 0, yOffset)
     frame.BackgroundTransparency = 1
     frame.Parent = MenuFrame
     
@@ -165,8 +138,8 @@ local function CreatePremiumToggle(name, setting)
     label.Size = UDim2.new(0.7, 0, 1, 0)
     label.TextColor3 = Color3.fromRGB(220, 220, 220)
     label.BackgroundTransparency = 1
-    label.Font = Enum.Font.GothamSemibold
-    label.TextSize = 16 * SETTINGS.UIScale
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 16
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
     
@@ -175,309 +148,57 @@ local function CreatePremiumToggle(name, setting)
     toggle.Size = UDim2.new(0.25, 0, 0.8, 0)
     toggle.Position = UDim2.new(0.75, 0, 0.1, 0)
     toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggle.BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
-    toggle.Font = Enum.Font.GothamBlack
-    toggle.TextSize = 14 * SETTINGS.UIScale
+    toggle.BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
+    toggle.Font = Enum.Font.GothamBold
+    toggle.TextSize = 14
     toggle.Name = setting.."Toggle"
     toggle.Parent = frame
     
     local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 8)
+    toggleCorner.CornerRadius = UDim.new(0, 6)
     toggleCorner.Parent = toggle
     
     toggle.MouseButton1Click:Connect(function()
         SETTINGS[setting] = not SETTINGS[setting]
-        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         local tween = TweenService:Create(toggle, tweenInfo, {
-            BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0),
+            BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0),
             Text = SETTINGS[setting] and "ON" or "OFF"
         })
         tween:Play()
     end)
     
-    yOffset = yOffset + 55 * SETTINGS.UIScale
+    yOffset = yOffset + 50
 end
 
--- Создание элементов меню
-CreatePremiumToggle("Aim Assist", "AimEnabled")
-CreateEnhancedInputField("FOV Angle", "FOV", 5, 360, true)
-CreateEnhancedInputField("Smoothness", "Smoothness", 0.05, 1, false)
-CreateEnhancedInputField("Aim Delay", "AimDelay", 0, 0.5, false)
-CreatePremiumToggle("Team Check", "TeamCheck")
-CreatePremiumToggle("Visibility Check", "VisibilityCheck")
-CreatePremiumToggle("Auto Fire", "AutoFire")
+-- Create controls
+CreateToggle("Aim Assist", "AimEnabled")
+CreateInputField("FOV Angle", "FOV", 10, 120)
+CreateInputField("Smoothness", "Smoothness", 0.1, 1)
+CreateInputField("Aim Delay", "AimDelay", 0, 0.5)
+CreateToggle("Team Check", "TeamCheck")
+CreateToggle("ESP", "ESPEnabled")
+CreateInputField("ESP Transparency", "ESPTransparency", 0, 1)
 
-CreatePremiumToggle("ESP System", "ESPEnabled")
-CreatePremiumToggle("Box ESP", "BoxESP")
-CreatePremiumToggle("Name ESP", "NameESP")
-CreatePremiumToggle("Health Bar", "HealthBar")
-CreatePremiumToggle("Distance", "DistanceESP")
-CreateEnhancedInputField("ESP Transparency", "ESPTransparency", 0, 1, false)
+-- Status label
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Text = "Hold LeftShift to aim | RightShift for menu"
+statusLabel.Size = UDim2.new(1, -40, 0, 30)
+statusLabel.Position = UDim2.new(0, 20, 0, yOffset + 20)
+statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 14
+statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+statusLabel.Parent = MenuFrame
 
--- Разделительная линия
-local divider = Instance.new("Frame")
-divider.Size = UDim2.new(1, -40 * SETTINGS.UIScale, 0, 2)
-divider.Position = UDim2.new(0, 20 * SETTINGS.UIScale, 0, yOffset + 10 * SETTINGS.UIScale)
-divider.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
-divider.BorderSizePixel = 0
-divider.Parent = MenuFrame
-yOffset = yOffset + 30 * SETTINGS.UIScale
-
--- Кнопка сброса настроек
-local resetButton = Instance.new("TextButton")
-resetButton.Text = "RESET TO DEFAULTS"
-resetButton.Size = UDim2.new(1, -40 * SETTINGS.UIScale, 0, 40 * SETTINGS.UIScale)
-resetButton.Position = UDim2.new(0, 20 * SETTINGS.UIScale, 0, yOffset + 20 * SETTINGS.UIScale)
-resetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-resetButton.BackgroundColor3 = Color3.fromRGB(80, 20, 20)
-resetButton.Font = Enum.Font.GothamBlack
-resetButton.TextSize = 16 * SETTINGS.UIScale
-resetButton.Parent = MenuFrame
-
-local resetCorner = Instance.new("UICorner")
-resetCorner.CornerRadius = UDim.new(0, 8)
-resetCorner.Parent = resetButton
-
-resetButton.MouseButton1Click:Connect(function()
-    local tween = TweenService:Create(resetButton, TweenInfo.new(0.2), {
-        BackgroundColor3 = Color3.fromRGB(120, 30, 30)
-    })
-    tween:Play()
-    tween.Completed:Wait()
-    
-    -- Сброс настроек
-    SETTINGS = {
-        AimEnabled = true,
-        AimKey = Enum.KeyCode.LeftShift,
-        FOV = 90,
-        AimDelay = 0.05,
-        Smoothness = 0.15,
-        TeamCheck = true,
-        VisibilityCheck = true,
-        AutoFire = false,
-        ESPEnabled = true,
-        BoxESP = true,
-        NameESP = true,
-        HealthBar = true,
-        DistanceESP = true,
-        VisibleColor = Color3.fromRGB(255, 50, 50),
-        HiddenColor = Color3.fromRGB(50, 50, 255),
-        ESPTransparency = 0.4,
-        MenuKey = Enum.KeyCode.RightShift,
-        UIScale = 1
-    }
-    
-    tween = TweenService:Create(resetButton, TweenInfo.new(0.3), {
-        BackgroundColor3 = Color3.fromRGB(0, 120, 0),
-        Text = "SETTINGS RESET!"
-    })
-    tween:Play()
-    wait(1)
-    resetButton.Text = "RESET TO DEFAULTS"
-    tween = TweenService:Create(resetButton, TweenInfo.new(0.3), {
-        BackgroundColor3 = Color3.fromRGB(80, 20, 20)
-    })
-    tween:Play()
-end)
-
--- ==================== УЛУЧШЕННЫЙ ESP ====================
-local ESPCache = {}
-local ESPFolders = {}
-
-local function CreateESP(player)
-    if player == LocalPlayer then return end
-    
-    local folder = Instance.new("Folder")
-    folder.Name = "ESP_"..player.Name
-    folder.Parent = ScreenGui
-    ESPFolders[player] = folder
-    
-    -- Box ESP
-    local box = Instance.new("BoxHandleAdornment")
-    box.Name = "Box"
-    box.Size = Vector3.new(3, 5, 1)
-    box.Color3 = SETTINGS.VisibleColor
-    box.Transparency = SETTINGS.ESPTransparency
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Visible = false
-    box.Parent = folder
-    
-    -- Name Tag
-    local nameTag = Instance.new("BillboardGui")
-    nameTag.Name = "NameTag"
-    nameTag.Size = UDim2.new(0, 200, 0, 50)
-    nameTag.StudsOffset = Vector3.new(0, 3.5, 0)
-    nameTag.MaxDistance = 1000
-    nameTag.AlwaysOnTop = true
-    nameTag.Visible = false
-    nameTag.Parent = folder
-    
-    local nameText = Instance.new("TextLabel")
-    nameText.Text = player.Name
-    nameText.Size = UDim2.new(1, 0, 1, 0)
-    nameText.BackgroundTransparency = 1
-    nameText.TextColor3 = Color3.new(1, 1, 1)
-    nameText.Font = Enum.Font.GothamBold
-    nameText.TextSize = 18
-    nameText.TextStrokeTransparency = 0.7
-    nameText.Parent = nameTag
-    
-    -- Health Bar
-    local healthBar = Instance.new("BillboardGui")
-    healthBar.Name = "HealthBar"
-    healthBar.Size = UDim2.new(2, 0, 0.2, 0)
-    healthBar.StudsOffset = Vector3.new(0, 2.5, 0)
-    healthBar.MaxDistance = 500
-    healthBar.AlwaysOnTop = true
-    healthBar.Visible = false
-    healthBar.Parent = folder
-    
-    local barBack = Instance.new("Frame")
-    barBack.Size = UDim2.new(1, 0, 1, 0)
-    barBack.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-    barBack.BorderSizePixel = 0
-    barBack.Parent = healthBar
-    
-    local barFront = Instance.new("Frame")
-    barFront.Size = UDim2.new(1, 0, 1, 0)
-    barFront.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-    barFront.BorderSizePixel = 0
-    barFront.Parent = barBack
-    
-    -- Distance
-    local distanceTag = Instance.new("BillboardGui")
-    distanceTag.Name = "DistanceTag"
-    distanceTag.Size = UDim2.new(0, 200, 0, 30)
-    distanceTag.StudsOffset = Vector3.new(0, 2, 0)
-    distanceTag.MaxDistance = 500
-    distanceTag.AlwaysOnTop = true
-    distanceTag.Visible = false
-    distanceTag.Parent = folder
-    
-    local distanceText = Instance.new("TextLabel")
-    distanceText.Text = "0m"
-    distanceText.Size = UDim2.new(1, 0, 1, 0)
-    distanceText.BackgroundTransparency = 1
-    distanceText.TextColor3 = Color3.new(1, 1, 1)
-    distanceText.Font = Enum.Font.Gotham
-    distanceText.TextSize = 16
-    distanceText.Parent = distanceTag
-    
-    -- Подключение к событиям игрока
-    player.CharacterAdded:Connect(function(character)
-        local humanoid = character:WaitForChild("Humanoid")
-        
-        box.Adornee = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-        nameTag.Adornee = character:FindFirstChild("Head") or character.PrimaryPart
-        healthBar.Adornee = character:FindFirstChild("Head") or character.PrimaryPart
-        distanceTag.Adornee = character:FindFirstChild("Head") or character.PrimaryPart
-        
-        humanoid.HealthChanged:Connect(function()
-            if SETTINGS.HealthBar then
-                local healthPercent = humanoid.Health / humanoid.MaxHealth
-                barFront.Size = UDim2.new(healthPercent, 0, 1, 0)
-                barFront.BackgroundColor3 = Color3.new(1 - healthPercent, healthPercent, 0)
-            end
-        end)
-    end)
-    
-    player.CharacterRemoving:Connect(function()
-        box.Adornee = nil
-        nameTag.Adornee = nil
-        healthBar.Adornee = nil
-        distanceTag.Adornee = nil
-    end)
-    
-    ESPCache[player] = {
-        Box = box,
-        NameTag = nameTag,
-        HealthBar = healthBar,
-        DistanceTag = distanceTag,
-        Folder = folder
-    }
-end
-
-local function UpdateESP()
-    for player, data in pairs(ESPCache) do
-        if not player or not player.Character then
-            if data.Folder then data.Folder:Destroy() end
-            ESPCache[player] = nil
-            continue
-        end
-        
-        local character = player.Character
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local rootPart = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-        local head = character:FindFirstChild("Head")
-        
-        if not humanoid or humanoid.Health <= 0 or not rootPart or not head then
-            data.Box.Visible = false
-            data.NameTag.Visible = false
-            data.HealthBar.Visible = false
-            data.DistanceTag.Visible = false
-            continue
-        end
-        
-        local isEnemy = not SETTINGS.TeamCheck or not player.Team or not LocalPlayer.Team or player.Team ~= LocalPlayer.Team
-        local isVisible = not SETTINGS.VisibilityCheck or IsVisible(character)
-        
-        if SETTINGS.ESPEnabled and isEnemy then
-            local color = isVisible and SETTINGS.VisibleColor or SETTINGS.HiddenColor
-            
-            -- Box ESP
-            if SETTINGS.BoxESP then
-                data.Box.Color3 = color
-                data.Box.Transparency = SETTINGS.ESPTransparency
-                data.Box.Visible = true
-            else
-                data.Box.Visible = false
-            end
-            
-            -- Name ESP
-            if SETTINGS.NameESP then
-                data.NameTag.Visible = true
-                data.NameTag.TextLabel.TextColor3 = color
-            else
-                data.NameTag.Visible = false
-            end
-            
-            -- Health Bar
-            if SETTINGS.HealthBar then
-                local healthPercent = humanoid.Health / humanoid.MaxHealth
-                data.HealthBar.Visible = true
-                data.HealthBar.Frame.Frame.Size = UDim2.new(healthPercent, 0, 1, 0)
-                data.HealthBar.Frame.Frame.BackgroundColor3 = Color3.new(1 - healthPercent, healthPercent, 0)
-            else
-                data.HealthBar.Visible = false
-            end
-            
-            -- Distance
-            if SETTINGS.DistanceESP and rootPart and LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                local distance = (rootPart.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude
-                data.DistanceTag.Visible = true
-                data.DistanceTag.TextLabel.Text = string.format("%.1fm", distance)
-                data.DistanceTag.TextLabel.TextColor3 = color
-            else
-                data.DistanceTag.Visible = false
-            end
-        else
-            data.Box.Visible = false
-            data.NameTag.Visible = false
-            data.HealthBar.Visible = false
-            data.DistanceTag.Visible = false
-        end
-    end
-end
-
--- ==================== УЛУЧШЕННЫЙ AIMBOT ====================
+-- ================ VISIBILITY CHECK ================
 local function IsVisible(character)
-    if not SETTINGS.VisibilityCheck then return true end
     if not character or not character:FindFirstChild("Head") then return false end
     
     local origin = Camera.CFrame.Position
     local target = character.Head.Position
-    local direction = (target - origin).Unit * (origin - target).Magnitude
+    local direction = (target - origin).Unit * 200
     
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
@@ -488,35 +209,78 @@ local function IsVisible(character)
     
     if ray then
         local hitPart = ray.Instance
-        return hitPart and (hitPart:IsDescendantOf(character) or hitPart.Transparency >= 0.9 or hitPart.CanCollide == false)
+        return hitPart and hitPart:IsDescendantOf(character)
     end
     
     return true
 end
 
+-- ================ ESP SYSTEM ================
+local ESPHighlights = {}
+
+local function IsEnemy(player)
+    if not SETTINGS.TeamCheck then return true end
+    return not player.Team or not LocalPlayer.Team or player.Team ~= LocalPlayer.Team
+end
+
+local function UpdateESP()
+    for player, highlight in pairs(ESPHighlights) do
+        if not player or not player.Character or not highlight then
+            ESPHighlights[player] = nil
+            continue
+        end
+        
+        if SETTINGS.ESPEnabled and IsEnemy(player) then
+            highlight.Enabled = true
+            highlight.FillColor = IsVisible(player.Character) and SETTINGS.VisibleColor or SETTINGS.HiddenColor
+            highlight.FillTransparency = SETTINGS.ESPTransparency
+        else
+            highlight.Enabled = false
+        end
+    end
+end
+
+local function CreateESP(player)
+    if player == LocalPlayer then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_"..player.Name
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.Adornee = player.Character
+    highlight.Parent = ScreenGui
+    
+    ESPHighlights[player] = highlight
+    
+    player.CharacterAdded:Connect(function(character)
+        highlight.Adornee = character
+    end)
+    
+    player.CharacterRemoving:Connect(function()
+        highlight.Adornee = nil
+    end)
+end
+
+-- Initialize ESP
+for _, player in ipairs(Players:GetPlayers()) do
+    CreateESP(player)
+end
+Players.PlayerAdded:Connect(CreateESP)
+
+-- ================ AIM ASSIST ================
 local function FindBestTarget()
     if not SETTINGS.AimEnabled then return nil end
     
     local bestTarget, closestAngle = nil, math.rad(SETTINGS.FOV)
     local viewportCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     
-    for player, data in pairs(ESPCache) do
+    for player, _ in pairs(ESPHighlights) do
         if not player or not player.Character then continue end
         
         local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
         local head = player.Character:FindFirstChild("Head")
         
         if not humanoid or humanoid.Health <= 0 or not head then continue end
-        
-        -- Проверка команды
-        if SETTINGS.TeamCheck and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
-            continue
-        end
-        
-        -- Проверка видимости
-        if SETTINGS.VisibilityCheck and not IsVisible(player.Character) then
-            continue
-        end
+        if not IsEnemy(player) then continue end
         
         local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
         if not onScreen then continue end
@@ -540,59 +304,39 @@ local function SmoothAim(target)
     local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     local delta = (Vector2.new(screenPos.X, screenPos.Y) - center) * SETTINGS.Smoothness
     
-    -- Плавное движение с учетом чувствительности
-    local steps = math.max(5, math.floor(delta.Magnitude / 10))
-    local stepDelta = delta / steps
-    
-    for i = 1, steps do
-        mousemoverel(stepDelta.X, stepDelta.Y)
-        wait()
-    end
-    
-    -- Авто-огонь (если включен)
-    if SETTINGS.AutoFire and CurrentTarget then
-        mouse1click()
-    end
+    mousemoverel(delta.X, delta.Y)
 end
 
--- ==================== ОСНОВНЫЕ СОБЫТИЯ ====================
--- Инициализация ESP для всех игроков
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        CreateESP(player)
-    end
-end
-
-Players.PlayerAdded:Connect(function(player)
-    CreateESP(player)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if ESPCache[player] then
-        ESPCache[player].Folder:Destroy()
-        ESPCache[player] = nil
-    end
-end)
-
--- Главный цикл
+-- ================ MAIN LOOPS ================
 RunService.Heartbeat:Connect(function()
-    -- Обновление ESP
+    -- ESP Update
     UpdateESP()
     
-    -- Аимбот
+    -- Aim Assist
     AimActive = UserInputService:IsKeyDown(SETTINGS.AimKey) and SETTINGS.AimEnabled
     
-    if AimActive then
-        CurrentTarget = FindBestTarget()
-        if CurrentTarget then
-            SmoothAim(CurrentTarget)
+    if not AimActive or not LocalPlayer.Character then
+        TargetFound = false
+        return
+    end
+    
+    local target = FindBestTarget()
+    
+    if target then
+        if not TargetFound then
+            TargetFound = true
+            AimStartTime = os.clock()
+        end
+        
+        if os.clock() - AimStartTime >= SETTINGS.AimDelay then
+            SmoothAim(target)
         end
     else
-        CurrentTarget = nil
+        TargetFound = false
     end
 end)
 
--- Управление меню
+-- ================ MENU CONTROL ================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
@@ -601,17 +345,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         MenuFrame.Visible = MenuVisible
         
         if MenuVisible then
-            MenuFrame:TweenPosition(UDim2.new(0.5, -200 * SETTINGS.UIScale, 0.5, -300 * SETTINGS.UIScale), "Out", "Quad", 0.3, true)
+            MenuFrame:TweenPosition(UDim2.new(0.5, -175, 0.5, -250), "Out", "Quad", 0.3, true)
         else
-            MenuFrame:TweenPosition(UDim2.new(0.5, -200 * SETTINGS.UIScale, 1.5, 0), "Out", "Quad", 0.3, true)
+            MenuFrame:TweenPosition(UDim2.new(0.5, -175, 0.5, 50), "Out", "Quad", 0.3, true)
         end
     end
 end)
 
--- Сообщение об успешной загрузке
-print("====================================")
-print("ULTIMATE COMBAT ASSISTANT v4.0 LOADED")
-print("Aim Key: LeftShift | Menu Key: RightShift")
-print("ESP Features: Box, Name, Health, Distance")
-print("Aim Features: Smoothness, FOV, Visibility Check")
-print("====================================")
+print("Combat Assistant v3.2 (Text Input) loaded successfully!")
+print("Menu: RightShift | Aim: LeftShift")
