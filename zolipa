@@ -1,59 +1,237 @@
--- Библиотека (без изменений)
-local library = {}
-local windowCount = 0
-local sizes = {}
-local listOffset = {}
-local window = {}
-local pastSliders = {}
-local dropdowns = {}
-local dropdownSizes = {}
-local destroyed
+local library = {windows = {}, pastSliders = {}, dropdowns = {}, dropdownSizes = {}, colorPickers = {}}
+library.__index = library
 
-local colorPickers = {}
-
-if game.CoreGui:FindFirstChild('TurtleUiLib') then
-    game.CoreGui:FindFirstChild('TurtleUiLib'):Destroy()
-    destroyed = true
+local function Lerp(a, b, c)
+    return a + (b - a) * c
 end
 
-function Lerp(a, b, c)
-    return a + ((b - a) * c)
-end
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local RunService = game:GetService("RunService")
 
-local players = game:service('Players');
-local player = players.LocalPlayer;
-local mouse = player:GetMouse();
-local run = game:service('RunService');
-local stepped = run.Stepped;
 function Dragify(obj)
     spawn(function()
-        local minitial;
-        local initial;
-        local isdragging;
+        local minitial, initial, isdragging
         obj.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                isdragging = true;
-                minitial = input.Position;
-                initial = obj.Position;
-                local con;
-                con = stepped:Connect(function()
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                isdragging = true
+                minitial = input.Position
+                initial = obj.Position
+                local con = RunService.Stepped:Connect(function()
                     if isdragging then
-                        local delta = Vector3.new(mouse.X, mouse.Y, 0) - minitial;
-                        obj.Position = UDim2.new(initial.X.Scale, initial.X.Offset + delta.X, initial.Y.Scale, initial.Y.Offset + delta.Y);
+                        local delta = Vector3.new(mouse.X, mouse.Y, 0) - minitial
+                        obj.Position = UDim2.new(initial.X.Scale, initial.X.Offset + delta.X, initial.Y.Scale, initial.Y.Offset + delta.Y)
                     else
-                        con:Disconnect();
-                    end;
-                end);
+                        con:Disconnect()
+                    end
+                end)
                 input.Changed:Connect(function()
                     if input.UserInputState == Enum.UserInputState.End then
-                        isdragging = false;
-                    end;
-                end);
-            end;
-        end);
+                        isdragging = false
+                    end
+                end)
+            end
+        end)
     end)
 end
 
--- ... (остальной код библиотеки без изменений) ...
+function library:Window(name, ...)
+    local args = {...}
+    local color = args[1] or Color3.fromRGB(35, 37, 39)
+    local size = args[2] or UDim2.new(0, 500, 0, 500)
+    local position = args[3] or UDim2.new(0.5, -250, 0.5, -250)
+
+    local windowCount = #self.windows + 1
+    local pastSliders = {}
+    local dropdowns = {}
+    local dropdownSizes = {}
+
+    local TurtleUiLib = Instance.new("ScreenGui")
+    TurtleUiLib.Name = "TurtleUiLib"
+    TurtleUiLib.Parent = game.CoreGui
+    TurtleUiLib.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local Main = Instance.new("Frame")
+    Main.Name = "Main"
+    Main.Size = size
+    Main.Position = position
+    Main.BackgroundColor3 = color
+    Main.BorderSizePixel = 0
+    Main.ClipsDescendants = true
+    Main.Parent = TurtleUiLib
+    Dragify(Main)
+
+    local Top = Instance.new("Frame")
+    Top.Name = "Top"
+    Top.Size = UDim2.new(1, 0, 0, 20)
+    Top.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Top.BorderSizePixel = 0
+    Top.Parent = Main
+
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Size = UDim2.new(0, 0, 1, 0)
+    Title.Position = UDim2.new(0, 5, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = name
+    Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Title.Font = Enum.Font.SourceSans
+    Title.TextSize = 15
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.Parent = Top
+
+    local Close = Instance.new("TextButton")
+    Close.Name = "Close"
+    Close.Size = UDim2.new(0, 20, 0, 20)
+    Close.Position = UDim2.new(1, -20, 0, 0)
+    Close.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Close.BorderSizePixel = 0
+    Close.Text = "X"
+    Close.Font = Enum.Font.SourceSans
+    Close.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Close.TextSize = 15
+    Close.Parent = Top
+    Close.MouseButton1Click:Connect(function()
+        TurtleUiLib:Destroy()
+        self.windows[windowCount] = nil
+    end)
+
+    local Container = Instance.new("ScrollingFrame")
+    Container.Name = "Container"
+    Container.Size = UDim2.new(1, 0, 1, -20)
+    Container.Position = UDim2.new(0, 0, 0, 20)
+    Container.BackgroundTransparency = 1
+    Container.BorderSizePixel = 0
+    Container.ScrollBarThickness = 5
+    Container.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Container.Parent = Main
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.Parent = Container
+    UIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        Container.CanvasSize = UDim2.new(0, 0, 0, UIListLayout.AbsoluteContentSize.Y)
+    end)
+
+    local window = {
+        Name = name,
+        Instance = TurtleUiLib,
+        Main = Main,
+        Container = Container,
+        Close = Close,
+        pastSliders = pastSliders,
+        dropdowns = dropdowns,
+        dropdownSizes = dropdownSizes
+    }
+
+    self.windows[windowCount] = window
+
+    function window:Label(text, color)
+        color = color or Color3.fromRGB(255, 255, 255)
+        local Label = Instance.new("TextLabel")
+        Label.Name = "Label"
+        Label.Size = UDim2.new(1, 0, 0, 20)
+        Label.BackgroundTransparency = 1
+        Label.Text = text
+        Label.TextColor3 = color
+        Label.Font = Enum.Font.SourceSans
+        Label.TextSize = 15
+        Label.TextXAlignment = Enum.TextXAlignment.Left
+        Label.Parent = Container
+        return Label
+    end
+
+    function window:Button(text, callback)
+        local Button = Instance.new("TextButton")
+        Button.Name = "Button"
+        Button.Size = UDim2.new(1, -10, 0, 20)
+        Button.Position = UDim2.new(0, 5, 0, 0)
+        Button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        Button.BorderSizePixel = 0
+        Button.Text = text
+        Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Button.Font = Enum.Font.SourceSans
+        Button.TextSize = 15
+        Button.Parent = Container
+        Button.MouseButton1Click:Connect(callback)
+        return Button
+    end
+
+    function window:Toggle(text, default, callback)
+        local toggled = default
+        local Toggle = Instance.new("TextButton")
+        Toggle.Name = "Toggle"
+        Toggle.Size = UDim2.new(1, -10, 0, 20)
+        Toggle.Position = UDim2.new(0, 5, 0, 0)
+        Toggle.BackgroundColor3 = toggled and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(45, 45, 45)
+        Toggle.BorderSizePixel = 0
+        Toggle.Text = text
+        Toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Toggle.Font = Enum.Font.SourceSans
+        Toggle.TextSize = 15
+        Toggle.Parent = Container
+
+        Toggle.MouseButton1Click:Connect(function()
+            toggled = not toggled
+            Toggle.BackgroundColor3 = toggled and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(45, 45, 45)
+            callback(toggled)
+        end)
+
+        return Toggle
+    end
+
+    function window:Box(text, callback)
+        local BoxFrame = Instance.new("Frame")
+        BoxFrame.Name = "BoxFrame"
+        BoxFrame.Size = UDim2.new(1, -10, 0, 20)
+        BoxFrame.BackgroundTransparency = 1
+        BoxFrame.Parent = Container
+
+        local BoxLabel = Instance.new("TextLabel")
+        BoxLabel.Name = "BoxLabel"
+        BoxLabel.Size = UDim2.new(0.4, 0, 1, 0)
+        BoxLabel.BackgroundTransparency = 1
+        BoxLabel.Text = text
+        BoxLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        BoxLabel.Font = Enum.Font.SourceSans
+        BoxLabel.TextSize = 15
+        BoxLabel.TextXAlignment = Enum.TextXAlignment.Left
+        BoxLabel.Parent = BoxFrame
+
+        local Box = Instance.new("TextBox")
+        Box.Name = "Box"
+        Box.Size = UDim2.new(0.6, 0, 1, 0)
+        Box.Position = UDim2.new(0.4, 0, 0, 0)
+        Box.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        Box.BorderSizePixel = 0
+        Box.Text = ""
+        Box.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Box.Font = Enum.Font.SourceSans
+        Box.TextSize = 15
+        Box.Parent = BoxFrame
+
+        Box.FocusLost:Connect(function()
+            callback(Box.Text)
+        end)
+
+        return Box
+    end
+
+    function window:Destroy()
+        TurtleUiLib:Destroy()
+        self.windows[windowCount] = nil
+    end
+
+    return window
+end
+
+function library:Destroy()
+    for _, window in pairs(self.windows) do
+        if window.Instance then
+            window.Instance:Destroy()
+        end
+    end
+    self.windows = {}
+end
 
 return library
