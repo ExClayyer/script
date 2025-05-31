@@ -1,356 +1,115 @@
---[[
-  Ultimate Combat Assistant v3.2 (Text Input Edition)
-  Features:
-  - Text input fields instead of sliders
-  - RightShift menu
-  - ESP system
-  - Aim Assist
---]]
+-- Простая библиотека UI без зависимостей
+local SimpleUiLib = {}
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
-
--- ================ DEFAULT SETTINGS ================
-local SETTINGS = {
-    -- Aim Assist
-    AimEnabled = true,
-    AimKey = Enum.KeyCode.LeftShift,
-    FOV = 70,
-    AimDelay = 0.1,
-    Smoothness = 0.25,
-    TeamCheck = true,
+function SimpleUiLib:CreateWindow(title)
+    local self = setmetatable({}, {__index = SimpleUiLib})
+    self.title = title or "Simple UI"
+    self.elements = {}
     
-    -- ESP
-    ESPEnabled = true,
-    VisibleColor = Color3.fromRGB(255, 50, 50),
-    HiddenColor = Color3.fromRGB(50, 50, 255),
-    ESPTransparency = 0.6,
+    -- Создаем основной экран
+    self.screenGui = Instance.new("ScreenGui")
+    self.screenGui.Name = "SimpleUiLib_"..tostring(math.random(1000,9999))
+    self.screenGui.Parent = game:GetService("CoreGui")
     
-    -- UI
-    MenuKey = Enum.KeyCode.RightShift
-}
-
--- ================ CORE VARIABLES ================
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local AimActive = false
-local TargetFound = false
-local AimStartTime = 0
-local MenuVisible = false
-
--- ================ UI CREATION ================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CombatAssistantUI_TextInput"
-ScreenGui.Parent = CoreGui
-ScreenGui.ResetOnSpawn = false
-
--- Main menu frame
-local MenuFrame = Instance.new("Frame")
-MenuFrame.Name = "SettingsMenu"
-MenuFrame.Size = UDim2.new(0, 350, 0, 500)
-MenuFrame.Position = UDim2.new(0.5, -175, 0.5, -250)
-MenuFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-MenuFrame.BorderSizePixel = 0
-MenuFrame.Visible = false
-MenuFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MenuFrame
-
-local title = Instance.new("TextLabel")
-title.Text = "COMBAT ASSISTANT v3.2"
-title.Size = UDim2.new(1, 0, 0, 40)
-title.TextColor3 = Color3.new(1, 1, 1)
-title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 18
-title.Parent = MenuFrame
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
-TitleCorner.Parent = title
-
--- Settings controls
-local yOffset = 50
-
-local function CreateInputField(name, setting, min, max)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -40, 0, 60)
-    frame.Position = UDim2.new(0, 20, 0, yOffset)
-    frame.BackgroundTransparency = 1
-    frame.Parent = MenuFrame
+    -- Основной фрейм
+    self.mainFrame = Instance.new("Frame")
+    self.mainFrame.Name = "MainFrame"
+    self.mainFrame.Size = UDim2.new(0, 300, 0, 400)
+    self.mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+    self.mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    self.mainFrame.BorderSizePixel = 0
+    self.mainFrame.Parent = self.screenGui
     
-    local label = Instance.new("TextLabel")
-    label.Text = name
-    label.Size = UDim2.new(0.6, 0, 0, 25)
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextSize = 16
-    label.Parent = frame
+    -- Заголовок
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Text = self.title
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.Position = UDim2.new(0, 0, 0, 0)
+    titleLabel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 18
+    titleLabel.Parent = self.mainFrame
     
-    local textBox = Instance.new("TextBox")
-    textBox.Text = tostring(SETTINGS[setting])
-    textBox.Size = UDim2.new(0.4, 0, 0, 30)
-    textBox.Position = UDim2.new(0.6, 0, 0, 0)
-    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-    textBox.TextColor3 = Color3.new(1, 1, 1)
-    textBox.Font = Enum.Font.Gotham
-    textBox.TextSize = 14
-    textBox.ClearTextOnFocus = false
-    textBox.PlaceholderText = tostring(SETTINGS[setting])
-    textBox.Parent = frame
+    -- Контейнер для элементов
+    self.contentFrame = Instance.new("Frame")
+    self.contentFrame.Name = "Content"
+    self.contentFrame.Size = UDim2.new(1, -10, 1, -40)
+    self.contentFrame.Position = UDim2.new(0, 5, 0, 35)
+    self.contentFrame.BackgroundTransparency = 1
+    self.contentFrame.Parent = self.mainFrame
     
-    local textBoxCorner = Instance.new("UICorner")
-    textBoxCorner.CornerRadius = UDim.new(0, 6)
-    textBoxCorner.Parent = textBox
+    -- Список элементов
+    self.listLayout = Instance.new("UIListLayout")
+    self.listLayout.Padding = UDim.new(0, 5)
+    self.listLayout.Parent = self.contentFrame
     
-    textBox.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            local num = tonumber(textBox.Text)
-            if num then
-                num = math.clamp(num, min, max)
-                SETTINGS[setting] = num
-                textBox.Text = tostring(num)
-            else
-                textBox.Text = tostring(SETTINGS[setting])
-            end
-        end
-    end)
-    
-    yOffset = yOffset + 70
+    return self
 end
 
-local function CreateToggle(name, setting)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -40, 0, 40)
-    frame.Position = UDim2.new(0, 20, 0, yOffset)
-    frame.BackgroundTransparency = 1
-    frame.Parent = MenuFrame
+-- Элементы UI
+function SimpleUiLib:Button(text, callback)
+    local button = Instance.new("TextButton")
+    button.Name = "Button_"..text
+    button.Size = UDim2.new(1, 0, 0, 30)
+    button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Text = text
+    button.Font = Enum.Font.SourceSans
+    button.TextSize = 14
+    button.Parent = self.contentFrame
     
-    local label = Instance.new("TextLabel")
-    label.Text = name
-    label.Size = UDim2.new(0.7, 0, 1, 0)
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 16
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = frame
+    button.MouseButton1Click:Connect(function()
+        pcall(callback)
+    end)
     
+    table.insert(self.elements, button)
+    return button
+end
+
+function SimpleUiLib:Toggle(text, default, callback)
     local toggle = Instance.new("TextButton")
-    toggle.Text = SETTINGS[setting] and "ON" or "OFF"
-    toggle.Size = UDim2.new(0.25, 0, 0.8, 0)
-    toggle.Position = UDim2.new(0.75, 0, 0.1, 0)
+    toggle.Name = "Toggle_"..text
+    toggle.Size = UDim2.new(1, 0, 0, 30)
+    toggle.BackgroundColor3 = default and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(100, 0, 0)
     toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggle.BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
-    toggle.Font = Enum.Font.GothamBold
+    toggle.Text = text..": "..(default and "ON" or "OFF")
+    toggle.Font = Enum.Font.SourceSans
     toggle.TextSize = 14
-    toggle.Name = setting.."Toggle"
-    toggle.Parent = frame
+    toggle.Parent = self.contentFrame
     
-    local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 6)
-    toggleCorner.Parent = toggle
+    local state = default or false
     
     toggle.MouseButton1Click:Connect(function()
-        SETTINGS[setting] = not SETTINGS[setting]
-        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local tween = TweenService:Create(toggle, tweenInfo, {
-            BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0),
-            Text = SETTINGS[setting] and "ON" or "OFF"
-        })
-        tween:Play()
+        state = not state
+        toggle.BackgroundColor3 = state and Color3.fromRGB(0, 100, 0) or Color3.fromRGB(100, 0, 0)
+        toggle.Text = text..": "..(state and "ON" or "OFF")
+        pcall(callback, state)
     end)
     
-    yOffset = yOffset + 50
+    table.insert(self.elements, toggle)
+    return toggle
 end
 
--- Create controls
-CreateToggle("Aim Assist", "AimEnabled")
-CreateInputField("FOV Angle", "FOV", 10, 120)
-CreateInputField("Smoothness", "Smoothness", 0.1, 1)
-CreateInputField("Aim Delay", "AimDelay", 0, 0.5)
-CreateToggle("Team Check", "TeamCheck")
-CreateToggle("ESP", "ESPEnabled")
-CreateInputField("ESP Transparency", "ESPTransparency", 0, 1)
-
--- Status label
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Text = "Hold LeftShift to aim | RightShift for menu"
-statusLabel.Size = UDim2.new(1, -40, 0, 30)
-statusLabel.Position = UDim2.new(0, 20, 0, yOffset + 20)
-statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 14
-statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-statusLabel.Parent = MenuFrame
-
--- ================ VISIBILITY CHECK ================
-local function IsVisible(character)
-    if not character or not character:FindFirstChild("Head") then return false end
+function SimpleUiLib:Label(text, color)
+    local label = Instance.new("TextLabel")
+    label.Name = "Label_"..text
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = color or Color3.fromRGB(255, 255, 255)
+    label.Text = text
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = self.contentFrame
     
-    local origin = Camera.CFrame.Position
-    local target = character.Head.Position
-    local direction = (target - origin).Unit * 200
-    
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.IgnoreWater = true
-    
-    local ray = workspace:Raycast(origin, direction, raycastParams)
-    
-    if ray then
-        local hitPart = ray.Instance
-        return hitPart and hitPart:IsDescendantOf(character)
-    end
-    
-    return true
+    table.insert(self.elements, label)
+    return label
 end
 
--- ================ ESP SYSTEM ================
-local ESPHighlights = {}
-
-local function IsEnemy(player)
-    if not SETTINGS.TeamCheck then return true end
-    return not player.Team or not LocalPlayer.Team or player.Team ~= LocalPlayer.Team
+function SimpleUiLib:Destroy()
+    self.screenGui:Destroy()
 end
 
-local function UpdateESP()
-    for player, highlight in pairs(ESPHighlights) do
-        if not player or not player.Character or not highlight then
-            ESPHighlights[player] = nil
-            continue
-        end
-        
-        if SETTINGS.ESPEnabled and IsEnemy(player) then
-            highlight.Enabled = true
-            highlight.FillColor = IsVisible(player.Character) and SETTINGS.VisibleColor or SETTINGS.HiddenColor
-            highlight.FillTransparency = SETTINGS.ESPTransparency
-        else
-            highlight.Enabled = false
-        end
-    end
-end
-
-local function CreateESP(player)
-    if player == LocalPlayer then return end
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ESP_"..player.Name
-    highlight.OutlineColor = Color3.new(1, 1, 1)
-    highlight.Adornee = player.Character
-    highlight.Parent = ScreenGui
-    
-    ESPHighlights[player] = highlight
-    
-    player.CharacterAdded:Connect(function(character)
-        highlight.Adornee = character
-    end)
-    
-    player.CharacterRemoving:Connect(function()
-        highlight.Adornee = nil
-    end)
-end
-
--- Initialize ESP
-for _, player in ipairs(Players:GetPlayers()) do
-    CreateESP(player)
-end
-Players.PlayerAdded:Connect(CreateESP)
-
--- ================ AIM ASSIST ================
-local function FindBestTarget()
-    if not SETTINGS.AimEnabled then return nil end
-    
-    local bestTarget, closestAngle = nil, math.rad(SETTINGS.FOV)
-    local viewportCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    
-    for player, _ in pairs(ESPHighlights) do
-        if not player or not player.Character then continue end
-        
-        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-        local head = player.Character:FindFirstChild("Head")
-        
-        if not humanoid or humanoid.Health <= 0 or not head then continue end
-        if not IsEnemy(player) then continue end
-        
-        local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-        if not onScreen then continue end
-        
-        local pos = Vector2.new(screenPos.X, screenPos.Y)
-        local angle = (pos - viewportCenter).Magnitude / viewportCenter.X
-        
-        if angle < closestAngle then
-            closestAngle = angle
-            bestTarget = head
-        end
-    end
-    
-    return bestTarget
-end
-
-local function SmoothAim(target)
-    if not target then return end
-    
-    local screenPos = Camera:WorldToViewportPoint(target.Position)
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    local delta = (Vector2.new(screenPos.X, screenPos.Y) - center) * SETTINGS.Smoothness
-    
-    mousemoverel(delta.X, delta.Y)
-end
-
--- ================ MAIN LOOPS ================
-RunService.Heartbeat:Connect(function()
-    -- ESP Update
-    UpdateESP()
-    
-    -- Aim Assist
-    AimActive = UserInputService:IsKeyDown(SETTINGS.AimKey) and SETTINGS.AimEnabled
-    
-    if not AimActive or not LocalPlayer.Character then
-        TargetFound = false
-        return
-    end
-    
-    local target = FindBestTarget()
-    
-    if target then
-        if not TargetFound then
-            TargetFound = true
-            AimStartTime = os.clock()
-        end
-        
-        if os.clock() - AimStartTime >= SETTINGS.AimDelay then
-            SmoothAim(target)
-        end
-    else
-        TargetFound = false
-    end
-end)
-
--- ================ MENU CONTROL ================
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == SETTINGS.MenuKey then
-        MenuVisible = not MenuVisible
-        MenuFrame.Visible = MenuVisible
-        
-        if MenuVisible then
-            MenuFrame:TweenPosition(UDim2.new(0.5, -175, 0.5, -250), "Out", "Quad", 0.3, true)
-        else
-            MenuFrame:TweenPosition(UDim2.new(0.5, -175, 0.5, 50), "Out", "Quad", 0.3, true)
-        end
-    end
-end)
-
-print("Combat Assistant v3.2 (Text Input) loaded successfully!")
-print("Menu: RightShift | Aim: LeftShift")
+return SimpleUiLib
