@@ -1,443 +1,259 @@
--- Ultimate Combat Assistant v3.5 (Combined Edition)
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
+-- Основной скрипт (улучшенный)
+local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ExClayyer/script/refs/heads/main/zolipa"))()
+local m = lib:Window("Build An Island")
+local bi = lib:Window("Buy Items")
+local s = lib:Window("Settings")
 
--- ================ DEFAULT SETTINGS ================
-local SETTINGS = {
-    -- Aim Assist
-    AimEnabled = true,
-    AimKey = Enum.KeyCode.LeftShift,
-    FOV = 70,
-    AimDelay = 0.05,
-    Smoothness = 1,
-    TeamCheck = true,
-    
-    -- ESP
-    ESPEnabled = true,
-    VisibleColor = Color3.fromRGB(255, 70, 70),
-    HiddenColor = Color3.fromRGB(70, 70, 255),
-    ESPTransparency = 0.4,
-    
-    -- UI
-    MenuKey = Enum.KeyCode.RightShift
+local Players = game:GetService("Players")
+local plr = Players.LocalPlayer
+local plot = game:GetService("Workspace"):WaitForChild("Plots"):WaitForChild(plr.Name)
+
+local land = plot:FindFirstChild("Land")
+local resources = plot:WaitForChild("Resources")
+local expand = plot:WaitForChild("Expand")
+
+getgenv().settings = {
+    farm = false,
+    expand = false,
+    craft = false,
+    sell = false,
+    gold = false,
+    collect = false,
+    harvest = false,
+    hive = false,
+    auto_buy = false,
+    selected_items = {}
 }
 
--- ================ CORE VARIABLES ================
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-local AimActive = false
-local CurrentTarget = nil
-local TargetFound = false
-local AimStartTime = 0
-local MenuVisible = false
-local ESPCache = {}
+-- Оптимизированные задержки
+local expand_delay = 0.05
+local craft_delay = 0.05
+local farm_delay = 0.005
 
--- ================ UI CREATION ================
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CombatAssistantUI_Combined"
-ScreenGui.Parent = CoreGui
-ScreenGui.ResetOnSpawn = false
-
--- Main menu frame
-local MenuFrame = Instance.new("Frame")
-MenuFrame.Name = "SettingsMenu"
-MenuFrame.Size = UDim2.new(0, 350, 0, 500)
-MenuFrame.Position = UDim2.new(0.5, -175, 0.5, -250)
-MenuFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-MenuFrame.BorderSizePixel = 0
-MenuFrame.Visible = false
-MenuFrame.Parent = ScreenGui
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 8)
-UICorner.Parent = MenuFrame
-
-local title = Instance.new("TextLabel")
-title.Text = "ULTIMATE COMBAT ASSISTANT v3.5"
-title.Size = UDim2.new(1, 0, 0, 40)
-title.TextColor3 = Color3.new(1, 1, 1)
-title.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 18
-title.Parent = MenuFrame
-
-local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 8)
-TitleCorner.Parent = title
-
--- Settings controls
-local yOffset = 50
-
-local function CreateInputField(name, setting, min, max)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -40, 0, 60)
-    frame.Position = UDim2.new(0, 20, 0, yOffset)
-    frame.BackgroundTransparency = 1
-    frame.Parent = MenuFrame
-    
-    local label = Instance.new("TextLabel")
-    label.Text = name
-    label.Size = UDim2.new(0.6, 0, 0, 25)
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.Gotham
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.TextSize = 16
-    label.Parent = frame
-    
-    local textBox = Instance.new("TextBox")
-    textBox.Text = tostring(SETTINGS[setting])
-    textBox.Size = UDim2.new(0.4, 0, 0, 30)
-    textBox.Position = UDim2.new(0.6, 0, 0, 0)
-    textBox.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-    textBox.TextColor3 = Color3.new(1, 1, 1)
-    textBox.Font = Enum.Font.Gotham
-    textBox.TextSize = 14
-    textBox.ClearTextOnFocus = false
-    textBox.PlaceholderText = tostring(SETTINGS[setting])
-    textBox.Parent = frame
-    
-    local textBoxCorner = Instance.new("UICorner")
-    textBoxCorner.CornerRadius = UDim.new(0, 6)
-    textBoxCorner.Parent = textBox
-    
-    textBox.FocusLost:Connect(function(enterPressed)
-        if enterPressed then
-            local num = tonumber(textBox.Text)
-            if num then
-                num = math.clamp(num, min, max)
-                SETTINGS[setting] = num
-                textBox.Text = tostring(num)
-            else
-                textBox.Text = tostring(SETTINGS[setting])
+-- Улучшенный автофарм ресурсов
+m:Toggle("Auto Farm Resources", settings.farm, function (b)
+    settings.farm = b
+    task.spawn(function()
+        while settings.farm do
+            local children = resources:GetChildren()
+            for i = 1, #children do
+                game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("HitResource"):FireServer(children[i])
+                task.wait(farm_delay)
             end
         end
     end)
-    
-    yOffset = yOffset + 70
-end
+end)
 
-local function CreateToggle(name, setting)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -40, 0, 40)
-    frame.Position = UDim2.new(0, 20, 0, yOffset)
-    frame.BackgroundTransparency = 1
-    frame.Parent = MenuFrame
-    
-    local label = Instance.new("TextLabel")
-    label.Text = name
-    label.Size = UDim2.new(0.7, 0, 1, 0)
-    label.TextColor3 = Color3.fromRGB(220, 220, 220)
-    label.BackgroundTransparency = 1
-    label.Font = Enum.Font.Gotham
-    label.TextSize = 16
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = frame
-    
-    local toggle = Instance.new("TextButton")
-    toggle.Text = SETTINGS[setting] and "ON" or "OFF"
-    toggle.Size = UDim2.new(0.25, 0, 0.8, 0)
-    toggle.Position = UDim2.new(0.75, 0, 0.1, 0)
-    toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-    toggle.BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0)
-    toggle.Font = Enum.Font.GothamBold
-    toggle.TextSize = 14
-    toggle.Name = setting.."Toggle"
-    toggle.Parent = frame
-    
-    local toggleCorner = Instance.new("UICorner")
-    toggleCorner.CornerRadius = UDim.new(0, 6)
-    toggleCorner.Parent = toggle
-    
-    toggle.MouseButton1Click:Connect(function()
-        SETTINGS[setting] = not SETTINGS[setting]
-        local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-        local tween = TweenService:Create(toggle, tweenInfo, {
-            BackgroundColor3 = SETTINGS[setting] and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(170, 0, 0),
-            Text = SETTINGS[setting] and "ON" or "OFF"
-        })
-        tween:Play()
+-- Авто расширение территории
+m:Toggle("Auto Expand Land", settings.expand, function (b)
+    settings.expand = b
+    task.spawn(function()
+        while settings.expand do
+            local children = expand:GetChildren()
+            for i = 1, #children do
+                local exp = children[i]
+                local top = exp:FindFirstChild("Top")
+                if top then
+                    local bGui = top:FindFirstChild("BillboardGui")
+                    if bGui then
+                        for _, contribute in ipairs(bGui:GetChildren()) do
+                            if contribute:IsA("Frame") and contribute.Name ~= "Example" then
+                                game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ContributeToExpand"):FireServer(exp.Name, contribute.Name, 1)
+                            end
+                        end
+                    end
+                end
+                task.wait(0.01)
+            end
+            task.wait(expand_delay)
+        end
     end)
-    
-    yOffset = yOffset + 50
-end
+end)
 
--- Create controls
-CreateToggle("Aim Assist", "AimEnabled")
-CreateInputField("FOV Angle", "FOV", 10, 120)
-CreateInputField("Smoothness", "Smoothness", 0.1, 1)
-CreateInputField("Aim Delay", "AimDelay", 0, 0.5)
-CreateToggle("Team Check", "TeamCheck")
-CreateToggle("ESP", "ESPEnabled")
-CreateInputField("ESP Transparency", "ESPTransparency", 0, 1)
-
--- Status label
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Text = "Hold LeftShift to aim | RightShift for menu"
-statusLabel.Size = UDim2.new(1, -40, 0, 30)
-statusLabel.Position = UDim2.new(0, 20, 0, yOffset + 20)
-statusLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 14
-statusLabel.TextXAlignment = Enum.TextXAlignment.Center
-statusLabel.Parent = MenuFrame
-
--- ================ FIXED VISIBILITY CHECK ================
-local function IsVisible(character)
-    if not character then return false end
-    local rootPart = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-    if not rootPart then return false end
-    
-    local origin = Camera.CFrame.Position
-    local target = rootPart.Position
-    local direction = (target - origin).Unit * 100
-    local ray = Ray.new(origin, direction)
-    
-    local hitPart = workspace:FindPartOnRayWithIgnoreList(ray, {Camera, LocalPlayer.Character})
-    return hitPart and hitPart:IsDescendantOf(character)
-end
-
--- ================ ENHANCED TEAM CHECK ================
-local function IsEnemy(player)
-    if not SETTINGS.TeamCheck then return true end
-    if player == LocalPlayer then return false end
-    
-    -- Team check
-    if player.Team and LocalPlayer.Team then
-        return player.Team ~= LocalPlayer.Team
-    end
-    
-    -- Additional checks
-    if player:FindFirstChild("ForceField") then
-        return false
-    end
-    
-    return true
-end
-
--- ================ FIXED ESP SYSTEM ================
-local function CreateESP(player)
-    if not player or player == LocalPlayer or not IsEnemy(player) then return end
-    
-    local folder = Instance.new("Folder")
-    folder.Name = "ESP_"..player.Name
-    folder.Parent = ScreenGui
-    ESPCache[player] = folder
-    
-    -- Box ESP
-    local box = Instance.new("BoxHandleAdornment")
-    box.Name = "Box"
-    box.Size = Vector3.new(3, 5, 1)
-    box.Color3 = SETTINGS.VisibleColor
-    box.Transparency = SETTINGS.ESPTransparency
-    box.AlwaysOnTop = true
-    box.ZIndex = 10
-    box.Adornee = nil
-    box.Parent = folder
-    
-    -- Name Tag
-    local nameTag = Instance.new("BillboardGui")
-    nameTag.Name = "NameTag"
-    nameTag.Size = UDim2.new(0, 200, 0, 50)
-    nameTag.StudsOffset = Vector3.new(0, 3.5, 0)
-    nameTag.Adornee = nil
-    nameTag.Enabled = false
-    nameTag.Parent = folder
-    
-    local nameText = Instance.new("TextLabel")
-    nameText.Text = player.Name
-    nameText.Size = UDim2.new(1, 0, 1, 0)
-    nameText.BackgroundTransparency = 1
-    nameText.TextColor3 = Color3.new(1, 1, 1)
-    nameText.Font = Enum.Font.GothamBold
-    nameText.TextSize = 18
-    nameText.TextStrokeTransparency = 0.7
-    nameText.Parent = nameTag
-    
-    -- Character connections
-    local function SetupCharacter(character)
-        if not character then return end
-        
-        local rootPart = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-        local head = character:FindFirstChild("Head")
-        
-        if box then box.Adornee = rootPart end
-        if nameTag then nameTag.Adornee = head end
-    end
-    
-    player.CharacterAdded:Connect(SetupCharacter)
-    if player.Character then
-        task.defer(SetupCharacter, player.Character)
-    end
-    
-    player.CharacterRemoving:Connect(function()
-        if box then box.Adornee = nil end
-        if nameTag then nameTag.Adornee = nil end
+-- Авто крафтинг
+m:Toggle("Auto Crafter", settings.craft, function (b)
+    settings.craft = b
+    task.spawn(function ()
+        while settings.craft do
+            for _, c in pairs(plot:GetDescendants()) do
+                if c.Name == "Crafter" then
+                    local attachment = c:FindFirstChildOfClass("Attachment")
+                    if attachment then
+                        game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Craft"):FireServer(attachment)
+                    end
+                end
+            end
+            task.wait(craft_delay)
+        end
     end)
-end
+end)
 
-local function SafeDestroyESP(player)
-    if ESPCache[player] then
-        ESPCache[player]:Destroy()
-        ESPCache[player] = nil
-    end
-end
-
-local function UpdateESP()
-    for player, folder in pairs(ESPCache) do
-        if not player or not player.Parent then
-            SafeDestroyESP(player)
-            continue
-        end
-        
-        if not IsEnemy(player) then
-            SafeDestroyESP(player)
-            continue
-        end
-        
-        local character = player.Character
-        if not character then
-            for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("BoxHandleAdornment") then
-                    child.Visible = false
-                elseif child:IsA("BillboardGui") then
-                    child.Enabled = false
+-- Авто добыча золота
+m:Toggle("Auto Gold Mine", settings.gold, function (b)
+    settings.gold = b
+    task.spawn(function ()
+        while settings.gold do
+            for _, mine in pairs(land:GetDescendants()) do
+                if mine:IsA("Model") and mine.Name == "GoldMineModel" then
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Goldmine"):FireServer(mine.Parent.Name, 1)
                 end
             end
-            continue
+            task.wait(0.5)  -- Оптимизированная задержка
         end
-        
-        local humanoid = character:FindFirstChildOfClass("Humanoid")
-        local rootPart = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-        
-        if SETTINGS.ESPEnabled and humanoid and humanoid.Health > 0 and rootPart then
-            local visible = IsVisible(character)
-            
-            for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("BoxHandleAdornment") then
-                    child.Visible = true
-                    child.Color3 = visible and SETTINGS.VisibleColor or SETTINGS.HiddenColor
-                elseif child:IsA("BillboardGui") then
-                    child.Enabled = true
-                    child.TextLabel.TextColor3 = visible and SETTINGS.VisibleColor or SETTINGS.HiddenColor
+    end)
+end)
+
+-- Авто сбор золота
+m:Toggle("Auto Collect Gold", settings.collect, function (b)
+    settings.collect = b
+    task.spawn(function ()
+        while settings.collect do
+            for _, mine in pairs(land:GetDescendants()) do
+                if mine:IsA("Model") and mine.Name == "GoldMineModel" then
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Goldmine"):FireServer(mine.Parent.Name, 2)
                 end
             end
-        else
-            for _, child in ipairs(folder:GetChildren()) do
-                if child:IsA("BoxHandleAdornment") then
-                    child.Visible = false
-                elseif child:IsA("BillboardGui") then
-                    child.Enabled = false
+            task.wait(0.5)  -- Оптимизированная задержка
+        end
+    end)
+end)
+
+-- Авто продажа
+m:Toggle("Auto Sell", settings.sell, function (b)
+    settings.sell = b
+    task.spawn(function ()
+        while settings.sell do
+            for _, crop in pairs(plr.Backpack:GetChildren()) do
+                if crop:GetAttribute("Sellable") then
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("SellToMerchant"):FireServer(false, {crop:GetAttribute("Hash")})
                 end
             end
+            task.wait(0.5)  -- Оптимизированная задержка
         end
+    end)
+end)
+
+-- Авто сбор урожая
+m:Toggle("Auto Harvest", settings.harvest, function (b)
+    settings.harvest = b
+    task.spawn(function ()
+        while settings.harvest do
+            local plants = plot:FindFirstChild("Plants")
+            if plants then
+                for _, crop in pairs(plants:GetChildren()) do
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Harvest"):FireServer(crop.Name)
+                end
+            end
+            task.wait(0.5)  -- Оптимизированная задержка
+        end
+    end)
+end)
+
+-- Авто сбор ульев
+m:Toggle("Auto Collect Hive", settings.hive, function (b)
+    settings.hive = b
+    task.spawn(function ()
+        while settings.hive do
+            for _, spot in ipairs(land:GetDescendants()) do
+                if spot:IsA("Model") and spot.Name:match("Spot") then
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Hive"):FireServer(spot.Parent.Name, spot.Name, 2)
+                end
+            end
+            task.wait(0.5)  -- Оптимизированная задержка
+        end
+    end)
+end)
+
+-- Новый функционал: Авто строительство
+m:Toggle("Auto Build", false, function(b)
+    settings.auto_build = b
+    task.spawn(function()
+        while settings.auto_build do
+            for _, blueprint in pairs(plot:GetDescendants()) do
+                if blueprint:IsA("Model") and blueprint.Name == "Blueprint" then
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Build"):FireServer(blueprint)
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end)
+
+-- Улучшенный автобай с множественным выбором
+local items = {}
+for _, item in ipairs(plr.PlayerGui.Main.Menus.Merchant.Inner.ScrollingFrame.Hold:GetChildren()) do
+    if item:IsA("Frame") and item.Name ~= "Example" then
+        table.insert(items, item.Name)
     end
 end
 
--- ================ AIM ASSIST ================
-local function FindBestTarget()
-    if not SETTINGS.AimEnabled then return nil end
-    
-    local bestTarget, closestAngle = nil, math.rad(SETTINGS.FOV)
-    local viewportCenter = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    
-    for player, _ in pairs(ESPCache) do
-        if not player or not player.Character then continue end
-        
-        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-        local head = player.Character:FindFirstChild("Head")
-        
-        if not humanoid or humanoid.Health <= 0 or not head then continue end
-        if not IsEnemy(player) then continue end
-        
-        local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-        if not onScreen then continue end
-        
-        local pos = Vector2.new(screenPos.X, screenPos.Y)
-        local angle = (pos - viewportCenter).Magnitude / viewportCenter.X
-        
-        if angle < closestAngle then
-            closestAngle = angle
-            bestTarget = head
-        end
-    end
-    
-    return bestTarget
-end
-
-local function SmoothAim(target)
-    if not target then return end
-    
-    local screenPos = Camera:WorldToViewportPoint(target.Position)
-    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    local delta = (Vector2.new(screenPos.X, screenPos.Y) - center) * SETTINGS.Smoothness
-    
-    mousemoverel(delta.X, delta.Y)
-end
-
--- ================ MAIN LOOPS ================
-local function Initialize()
-    -- Initialize ESP
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            CreateESP(player)
-        end
-    end
-
-    Players.PlayerAdded:Connect(CreateESP)
-    Players.PlayerRemoving:Connect(SafeDestroyESP)
-end
-
-RunService.Heartbeat:Connect(function()
-    -- ESP Update
-    UpdateESP()
-    
-    -- Aim Assist
-    AimActive = UserInputService:IsKeyDown(SETTINGS.AimKey) and SETTINGS.AimEnabled
-    
-    if not AimActive or not LocalPlayer.Character then
-        TargetFound = false
-        return
-    end
-    
-    local target = FindBestTarget()
-    
-    if target then
-        if not TargetFound then
-            TargetFound = true
-            AimStartTime = os.clock()
-        end
-        
-        if os.clock() - AimStartTime >= SETTINGS.AimDelay then
-            SmoothAim(target)
-        end
-    else
-        TargetFound = false
+bi:Dropdown("Select Items", items, function(name)
+    if not table.find(settings.selected_items, name) then
+        table.insert(settings.selected_items, name)
     end
 end)
 
--- ================ MENU CONTROL ================
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    
-    if input.KeyCode == SETTINGS.MenuKey then
-        MenuVisible = not MenuVisible
-        MenuFrame.Visible = MenuVisible
-        
-        if MenuVisible then
-            MenuFrame:TweenPosition(UDim2.new(0.5, -175, 0.5, -250), "Out", "Quad", 0.3, true)
-        else
-            MenuFrame:TweenPosition(UDim2.new(0.5, -175, 0.5, 50), "Out", "Quad", 0.3, true)
+bi:Button("Clear Selection", function()
+    settings.selected_items = {}
+end)
+
+bi:Button("Buy Selected", function ()
+    if #settings.selected_items > 0 then
+        for _, itemName in ipairs(settings.selected_items) do
+            game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("BuyFromMerchant"):FireServer(itemName, false)
+            task.wait(0.1)
         end
     end
 end)
 
--- Initialize the script
-Initialize()
+bi:Toggle("Auto Buy Selected", false, function (b)
+    settings.auto_buy = b
+    task.spawn(function ()
+        while settings.auto_buy do
+            if #settings.selected_items > 0 then
+                for _, itemName in ipairs(settings.selected_items) do
+                    game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("BuyFromMerchant"):FireServer(itemName, false)
+                    task.wait(0.1)
+                end
+            end
+            task.wait(1)
+        end
+    end)
+end)
 
-print("Ultimate Combat Assistant v3.5 loaded successfully!")
-print("Menu: RightShift | Aim: LeftShift")
+-- Улучшенный анти-афк
+s:Button("Anti AFK", function ()
+    local bb = game:GetService("VirtualUser")
+    plr.Idled:connect(function()
+        bb:CaptureController()
+        bb:ClickButton2(Vector2.new())
+    end)
+end)
+
+-- Настройки задержек
+s:Box("Expand Delay (sec)", function(t)
+    expand_delay = tonumber(t) or 0.05
+end)
+
+s:Box("Craft Delay (sec)", function(t)
+    craft_delay = tonumber(t) or 0.05
+end)
+
+s:Box("Farm Delay (sec)", function(t)
+    farm_delay = tonumber(t) or 0.005
+end)
+
+-- Информационные метки
+s:Label("Press LeftControl to Hide UI", Color3.fromRGB(127, 143, 166))
+s:Label("~ t.me/arceusxscripts", Color3.fromRGB(127, 143, 166))
+
+-- Кнопка уничтожения GUI
+s:Button("Destroy Gui", function ()
+    for k in pairs(settings) do
+        settings[k] = false
+    end
+    lib:Destroy()
+end)
+
+-- Горячая клавиша
+lib:Keybind("LeftControl")
