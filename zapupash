@@ -1,4 +1,3 @@
--- Основной скрипт (улучшенный)
 local lib = loadstring(game:HttpGet("https://raw.githubusercontent.com/ExClayyer/script/refs/heads/main/zolipa"))()
 local m = lib:Window("Build An Island")
 local bi = lib:Window("Buy Items")
@@ -22,6 +21,7 @@ getgenv().settings = {
     harvest = false,
     hive = false,
     auto_buy = false,
+    auto_build = false,
     selected_items = {}
 }
 
@@ -31,7 +31,7 @@ local craft_delay = 0.05
 local farm_delay = 0.005
 
 -- Улучшенный автофарм ресурсов
-m:Toggle("Auto Farm Resources", settings.farm, function (b)
+m:Toggle("Auto Farm Resources", settings.farm, function(b)
     settings.farm = b
     task.spawn(function()
         while settings.farm do
@@ -45,7 +45,7 @@ m:Toggle("Auto Farm Resources", settings.farm, function (b)
 end)
 
 -- Авто расширение территории
-m:Toggle("Auto Expand Land", settings.expand, function (b)
+m:Toggle("Auto Expand Land", settings.expand, function(b)
     settings.expand = b
     task.spawn(function()
         while settings.expand do
@@ -71,9 +71,9 @@ m:Toggle("Auto Expand Land", settings.expand, function (b)
 end)
 
 -- Авто крафтинг
-m:Toggle("Auto Crafter", settings.craft, function (b)
+m:Toggle("Auto Crafter", settings.craft, function(b)
     settings.craft = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.craft do
             for _, c in pairs(plot:GetDescendants()) do
                 if c.Name == "Crafter" then
@@ -89,54 +89,54 @@ m:Toggle("Auto Crafter", settings.craft, function (b)
 end)
 
 -- Авто добыча золота
-m:Toggle("Auto Gold Mine", settings.gold, function (b)
+m:Toggle("Auto Gold Mine", settings.gold, function(b)
     settings.gold = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.gold do
             for _, mine in pairs(land:GetDescendants()) do
                 if mine:IsA("Model") and mine.Name == "GoldMineModel" then
                     game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Goldmine"):FireServer(mine.Parent.Name, 1)
                 end
             end
-            task.wait(0.5)  -- Оптимизированная задержка
+            task.wait(0.5)
         end
     end)
 end)
 
 -- Авто сбор золота
-m:Toggle("Auto Collect Gold", settings.collect, function (b)
+m:Toggle("Auto Collect Gold", settings.collect, function(b)
     settings.collect = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.collect do
             for _, mine in pairs(land:GetDescendants()) do
                 if mine:IsA("Model") and mine.Name == "GoldMineModel" then
                     game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Goldmine"):FireServer(mine.Parent.Name, 2)
                 end
             end
-            task.wait(0.5)  -- Оптимизированная задержка
+            task.wait(0.5)
         end
     end)
 end)
 
 -- Авто продажа
-m:Toggle("Auto Sell", settings.sell, function (b)
+m:Toggle("Auto Sell", settings.sell, function(b)
     settings.sell = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.sell do
             for _, crop in pairs(plr.Backpack:GetChildren()) do
                 if crop:GetAttribute("Sellable") then
                     game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("SellToMerchant"):FireServer(false, {crop:GetAttribute("Hash")})
                 end
             end
-            task.wait(0.5)  -- Оптимизированная задержка
+            task.wait(0.5)
         end
     end)
 end)
 
 -- Авто сбор урожая
-m:Toggle("Auto Harvest", settings.harvest, function (b)
+m:Toggle("Auto Harvest", settings.harvest, function(b)
     settings.harvest = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.harvest do
             local plants = plot:FindFirstChild("Plants")
             if plants then
@@ -144,28 +144,28 @@ m:Toggle("Auto Harvest", settings.harvest, function (b)
                     game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Harvest"):FireServer(crop.Name)
                 end
             end
-            task.wait(0.5)  -- Оптимизированная задержка
+            task.wait(0.5)
         end
     end)
 end)
 
 -- Авто сбор ульев
-m:Toggle("Auto Collect Hive", settings.hive, function (b)
+m:Toggle("Auto Collect Hive", settings.hive, function(b)
     settings.hive = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.hive do
             for _, spot in ipairs(land:GetDescendants()) do
                 if spot:IsA("Model") and spot.Name:match("Spot") then
                     game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("Hive"):FireServer(spot.Parent.Name, spot.Name, 2)
                 end
             end
-            task.wait(0.5)  -- Оптимизированная задержка
+            task.wait(0.5)
         end
     end)
 end)
 
--- Новый функционал: Авто строительство
-m:Toggle("Auto Build", false, function(b)
+-- Авто строительство
+m:Toggle("Auto Build", settings.auto_build, function(b)
     settings.auto_build = b
     task.spawn(function()
         while settings.auto_build do
@@ -181,9 +181,17 @@ end)
 
 -- Улучшенный автобай с множественным выбором
 local items = {}
-for _, item in ipairs(plr.PlayerGui.Main.Menus.Merchant.Inner.ScrollingFrame.Hold:GetChildren()) do
-    if item:IsA("Frame") and item.Name ~= "Example" then
-        table.insert(items, item.Name)
+if plr.PlayerGui:FindFirstChild("Main") and plr.PlayerGui.Main:FindFirstChild("Menus") then
+    local merchant = plr.PlayerGui.Main.Menus:FindFirstChild("Merchant")
+    if merchant then
+        local hold = merchant.Inner:FindFirstChild("ScrollingFrame") and merchant.Inner.ScrollingFrame:FindFirstChild("Hold")
+        if hold then
+            for _, item in ipairs(hold:GetChildren()) do
+                if item:IsA("Frame") and item.Name ~= "Example" then
+                    table.insert(items, item.Name)
+                end
+            end
+        end
     end
 end
 
@@ -197,7 +205,7 @@ bi:Button("Clear Selection", function()
     settings.selected_items = {}
 end)
 
-bi:Button("Buy Selected", function ()
+bi:Button("Buy Selected", function()
     if #settings.selected_items > 0 then
         for _, itemName in ipairs(settings.selected_items) do
             game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("BuyFromMerchant"):FireServer(itemName, false)
@@ -206,9 +214,9 @@ bi:Button("Buy Selected", function ()
     end
 end)
 
-bi:Toggle("Auto Buy Selected", false, function (b)
+bi:Toggle("Auto Buy Selected", false, function(b)
     settings.auto_buy = b
-    task.spawn(function ()
+    task.spawn(function()
         while settings.auto_buy do
             if #settings.selected_items > 0 then
                 for _, itemName in ipairs(settings.selected_items) do
@@ -222,9 +230,9 @@ bi:Toggle("Auto Buy Selected", false, function (b)
 end)
 
 -- Улучшенный анти-афк
-s:Button("Anti AFK", function ()
+s:Button("Anti AFK", function()
     local bb = game:GetService("VirtualUser")
-    plr.Idled:connect(function()
+    plr.Idled:Connect(function()
         bb:CaptureController()
         bb:ClickButton2(Vector2.new())
     end)
@@ -248,12 +256,20 @@ s:Label("Press LeftControl to Hide UI", Color3.fromRGB(127, 143, 166))
 s:Label("~ t.me/arceusxscripts", Color3.fromRGB(127, 143, 166))
 
 -- Кнопка уничтожения GUI
-s:Button("Destroy Gui", function ()
+s:Button("Destroy Gui", function()
     for k in pairs(settings) do
-        settings[k] = false
+        if type(settings[k]) == "boolean" then
+            settings[k] = false
+        end
     end
     lib:Destroy()
 end)
 
 -- Горячая клавиша
-lib:Keybind("LeftControl")
+m:Keybind("LeftControl", function()
+    for _, window in pairs(lib.windows) do
+        if window.Instance then
+            window.Instance.Enabled = not window.Instance.Enabled
+        end
+    end
+end)
